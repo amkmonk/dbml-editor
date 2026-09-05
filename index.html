@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Редактор DBML</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="mode-view">
+    <header>
+      <div>
+        <h1>Редактор DBML</h1>
+        <p>Файл: <span class="file-name" id="fileName">новый.dbml</span></p>
+      </div>
+      <div class="mode-switch" role="tablist">
+        <button type="button" id="btnView" class="active">Просмотр</button>
+        <button type="button" id="btnEdit">Редактор</button>
+      </div>
+      <div class="toolbar">
+        <button type="button" class="edit-only" id="btnNew">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h5.2L12 5.3V13.5H4z"/><path d="M9.2 2.5V5.3H12"/><path d="M8 7.2v4M6 9.2h4"/></svg>
+          Новый
+        </button>
+        <label class="file-btn">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 5.5V13h11V6.5H8L6.5 5H2.5z"/><path d="M2.5 5.5V3.5h3.2L7 5"/></svg>
+          Открыть
+          <input type="file" id="fileOpen" accept=".dbml,.txt" />
+        </label>
+        <div class="menu edit-only" id="downloadMenu">
+          <button type="button" id="btnDownload" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8"/><path d="M5 8.2 8 11.2 11 8.2"/><path d="M3 13.5h10"/></svg>
+            Скачать
+            <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>
+          </button>
+          <div class="menu-list" id="downloadList" hidden>
+            <button type="button" data-export="dbml">DBML</button>
+            <button type="button" data-export="sql">SQL</button>
+            <button type="button" data-export="png">PNG</button>
+          </div>
+        </div>
+        <button type="button" class="edit-only" id="btnUndo" title="Ctrl+Z" disabled>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 7.5H11a2.5 2.5 0 0 1 0 5H9.5"/><path d="M6.5 5.2 4.2 7.5 6.5 9.8"/></svg>
+          Отменить
+        </button>
+        <button type="button" class="edit-only" id="btnRedo" title="Ctrl+Y" disabled>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11.5 7.5H5a2.5 2.5 0 0 0 0 5h1.5"/><path d="M9.5 5.2 11.8 7.5 9.5 9.8"/></svg>
+          Повторить
+        </button>
+        <button type="button" class="edit-only" id="btnZone">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/></svg>
+          Зона
+        </button>
+        <button type="button" class="edit-only" id="btnTable">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/><path d="M2.5 6h11M2.5 10h11M8 6v7.5"/></svg>
+          Таблица
+        </button>
+        <button type="button" class="edit-only" id="btnField">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h7"/></svg>
+          Поле
+        </button>
+        <button type="button" class="edit-only" id="btnLink">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.2" cy="8" r="1.6"/><circle cx="11.8" cy="8" r="1.6"/><path d="M5.8 8h4.4"/></svg>
+          Связь
+        </button>
+      </div>
+      <div class="toggles">
+        <label class="view-only"><input type="checkbox" id="showAll" /> Все столбцы</label>
+        <label class="view-only"><input type="checkbox" id="showCross" /> Связи между зонами</label>
+        <label class="view-only"><input type="checkbox" id="showWires" checked /> Линии FK</label>
+        <button type="button" class="zoom-label" id="zoomReset" title="Сбросить масштаб">100%</button>
+      </div>
+    </header>
+    <div class="workspace">
+      <aside class="catalog" id="catalog">
+        <h2>Справочник</h2>
+        <input type="search" id="catalogSearch" placeholder="Найти объект" />
+        <div id="catalogTree"></div>
+      </aside>
+      <main id="viewport">
+        <div id="worldSlot">
+          <div id="world">
+            <div id="board">
+              <svg id="wires"></svg>
+            </div>
+          </div>
+        </div>
+      </main>
+      <aside class="panel" id="panel">
+        <h2>Свойства</h2>
+        <p id="panelEmpty">Выберите объект в справочнике или на доске.</p>
+        <div id="panelBody" hidden></div>
+        <div class="panel-actions">
+          <button type="button" id="btnCopy" disabled>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1"/><path d="M10.5 5.5V3.5h-8v8H4.5"/></svg>
+            Копировать
+          </button>
+          <button type="button" class="danger" id="btnDelete" disabled>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M5 4.5l.5 8h5l.5-8"/></svg>
+            Удалить
+          </button>
+        </div>
+      </aside>
+    </div>
+    <div id="noteTip" hidden></div>
+    <div id="hint">Режим просмотра: колесо масштабирует, перетаскивание двигает полотно. Наведите таблицу, чтобы подсветить связи.</div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

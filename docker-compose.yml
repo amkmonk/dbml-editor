@@ -1,0 +1,15 @@
+# Редактор DBML: раздача на http://localhost:5177
+#
+#   docker compose up --build
+#
+name: ${COMPOSE_PROJECT_NAME:-dbml-editor}
+
+services:
+  editor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${COMPOSE_PROJECT_NAME:-dbml-editor}
+    restart: unless-stopped
+    ports:
+      - "${DBML_EDITOR_PORT:-5177}:80"
