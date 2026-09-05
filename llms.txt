@@ -1,0 +1,8 @@
+# dbml-editor
+
+> Frontend viewer/editor for a restricted DBML dialect. No backend. If you were sent here from another codebase to generate a `.dbml` file, read AGENTS.md and follow it. Do not emit full dbdiagram.io DBML.
+
+## Documentation
+
+- [AGENTS.md](https://raw.githubusercontent.com/amkmonk/dbml-editor/main/AGENTS.md): how to generate a compatible `.dbml` from any project's schema
+- [README.md](https://raw.githubusercontent.com/amkmonk/dbml-editor/main/README.md): how to run the editor and dialect examples humans can open
