@@ -4,6 +4,25 @@
 
 По умолчанию открывается режим **просмотра**. Редактирование — отдельный режим.
 
+## Десктоп (Windows и Linux)
+
+Готовые установщики лежат в [релизах](https://github.com/amkmonk/dbml-editor/releases): Windows — NSIS (`.exe`), Linux — `.deb` и AppImage.
+
+Собрать у себя (нужны Node, Rust и [зависимости Tauri](https://v2.tauri.app/start/prerequisites/)):
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+Пакет для текущей ОС:
+
+```bash
+npm run tauri:build
+```
+
+На Windows ещё Visual Studio C++ Build Tools и WebView2. На Linux — `libwebkit2gtk-4.1-dev` и пакеты из документации Tauri.
+
 ## Запуск в Docker
 
 Из этой папки, без локального Node:
