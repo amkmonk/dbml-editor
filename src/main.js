@@ -1,11 +1,13 @@
 import interact from "./vendor/interact.js";
 import { copySelection, moveColumn, moveColumnTo, moveSelection, nudgeStep, relatedTableIds } from "./actions.js";
+import { arrange } from "./arrange.js";
 import { centerOn, clampZoom, contentCenter, zoomAround } from "./camera.js";
 import { emptyState, parseDbml, toDbml } from "./dbml.js";
 import { fileStem, resolveSide, toPngBlob, toSql } from "./export.js";
 import { createSession } from "./history.js";
 import { fieldIcon, iconSvg } from "./icons.js";
 import { fitZone } from "./layout.js";
+import { spread } from "./spread.js";
 import { DEFAULT_COLOR, nextZoneColor, normalizeHex, zonePaint } from "./colors.js";
 
 const viewport = document.getElementById("viewport");
@@ -329,13 +331,13 @@ function render() {
           linkFrom && linkFrom.tableId === table.id && linkFrom.column === column.name ? " linking" : "";
         return `<li class="${active}${fromHere}" data-col="${escapeAttr(column.name)}">
           <button type="button" class="port left${linkFrom && linkFrom.tableId === table.id && linkFrom.column === column.name && linkFrom.side === "left" ? " active" : ""}" data-side="left" aria-label="Связь слева"></button>
-          <span class="n">${mark}${escapeHtml(column.name)}</span>
-          <span class="t">${escapeHtml(column.type)}</span>
+          <span class="n" title="${escapeAttr(column.name)}">${mark}${escapeHtml(column.name)}</span>
+          <span class="t" title="${escapeAttr(column.type)}">${escapeHtml(column.type)}</span>
           <button type="button" class="port right${linkFrom && linkFrom.tableId === table.id && linkFrom.column === column.name && linkFrom.side === "right" ? " active" : ""}" data-side="right" aria-label="Связь справа"></button>
         </li>`;
       })
       .join("");
-    card.innerHTML = `<header class="th" style="color:${paint.header}">${escapeHtml(table.id)}</header><ul class="cols">${cols}</ul>`;
+    card.innerHTML = `<header class="th" style="color:${paint.header}" title="${escapeAttr(table.id)}">${escapeHtml(table.id)}</header><ul class="cols">${cols}</ul>`;
     placeTableCard(table, card);
     card.querySelector(".th").addEventListener("mousedown", () => select({ type: "table", id: table.id }));
     card.addEventListener("pointerenter", () => {
@@ -406,6 +408,7 @@ function render() {
   }
 
   board.appendChild(svg);
+  applySpread();
   bindInteract();
   applyCamera();
   drawWires();
@@ -414,6 +417,37 @@ function render() {
   refreshDirty();
   updateUndoButtons();
   if (mode === "view" && hoverTable) scheduleNoteTip(hoverTable);
+}
+
+/*
+  applySpread — в просмотре со скрытыми столбцами таблицы вырастают и
+  наезжают на соседей. Карточки и зоны раздвигаются только на экране:
+  сохранённые координаты не меняются, и без галочки всё встаёт на место.
+*/
+function applySpread() {
+  if (mode !== "view" || !showAll.checked) return;
+  const rows = [];
+  for (const table of state.tables) {
+    const card = board.querySelector(`.table[data-id="${cssEscape(table.id)}"]`);
+    if (!card) continue;
+    const row = card.querySelector(".cols li");
+    const hidden = table.columns.filter((column) => column.hidden).length;
+    const shown = card.offsetHeight;
+    rows.push({ id: table.id, zone: table.zone, x: table.x, y: table.y, shown, base: shown - hidden * (row?.offsetHeight || 20), card });
+  }
+  if (!rows.some((row) => row.shown !== row.base)) return;
+  const shift = spread(state.zones, rows);
+  for (const zone of state.zones) {
+    const moved = shift.zones.get(zone.id);
+    const el = board.querySelector(`.zone[data-id="${cssEscape(zone.id)}"]`);
+    if (!el || !moved) continue;
+    el.style.top = `${zone.y + moved.dy}px`;
+    el.style.height = `${zone.h + moved.dh}px`;
+  }
+  for (const row of rows) {
+    const zone = zoneById(row.zone);
+    row.card.style.top = `${(zone?.y || 0) + (shift.zones.get(row.zone)?.dy || 0) + row.y + shift.tables.get(row.id)}px`;
+  }
 }
 
 function bindInteract() {
@@ -1042,6 +1076,32 @@ function addZone() {
   render();
 }
 
+/*
+  arrangeBoard — «Разложить»: вся раскладка пересчитывается одним шагом
+  истории, «Отменить» возвращает прежнюю целиком. Расчёт занимает секунды,
+  поэтому сначала показывается подсказка.
+*/
+function arrangeBoard() {
+  if (!isEdit() || !state.tables.length) return;
+  const button = document.getElementById("btnArrange");
+  button.disabled = true;
+  setHint("Раскладываю схему…");
+  setTimeout(() => {
+    try {
+      const { state: next, before, after } = arrange(state);
+      state = next;
+      commitChange();
+      render();
+      growBoard();
+      setHint(
+        `Разложено: пересечений ${before.crossings} → ${after.crossings}, линий сквозь таблицы ${before.through} → ${after.through}. Вернуть прежнюю раскладку — «Отменить» или Ctrl+Z.`,
+      );
+    } finally {
+      button.disabled = false;
+    }
+  }, 30);
+}
+
 function addTable() {
   if (!isEdit()) return;
   const zone = selected?.type === "zone" ? zoneById(selected.id) : state.zones[0];
@@ -1307,6 +1367,7 @@ document.getElementById("btnZone").addEventListener("click", addZone);
 document.getElementById("btnTable").addEventListener("click", addTable);
 document.getElementById("btnField").addEventListener("click", addField);
 document.getElementById("btnCopy").addEventListener("click", duplicateSelected);
+document.getElementById("btnArrange").addEventListener("click", arrangeBoard);
 document.getElementById("btnLink").addEventListener("click", () => {
   if (!isEdit()) return;
   setLinkMode(!linkMode);
