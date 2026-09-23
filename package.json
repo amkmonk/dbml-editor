@@ -10,10 +10,14 @@
     "test": "node --test src/*.test.js",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "cli": "node bin/dbml-editor.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
     "vite": "^8.2.2"
+  },
+  "bin": {
+    "dbml-editor": "bin/dbml-editor.js"
   }
 }
