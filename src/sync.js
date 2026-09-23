@@ -8,7 +8,8 @@ import { fitZone } from "./layout.js";
 /**
  * INTROSPECTION_SQL — запросы выгрузки для psql -At -F '|'. Столбцы:
  * columns — таблица, столбец, тип, порядок, первичный ключ, одиночный
- * уникальный индекс (ограничение UNIQUE или индекс, в том числе частичный);
+ * уникальный индекс (ограничение UNIQUE или индекс). Частичный индекс
+ * («среди живых строк», «только для output») столбец уникальным не делает;
  * fks — таблица, столбец, таблица-цель, столбец-цель, правило удаления,
  * имя ограничения, число столбцов в ограничении.
  */
@@ -28,7 +29,7 @@ export const INTROSPECTION_SQL = {
           JOIN pg_catalog.pg_class r ON r.oid = i.indrelid
           JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace
           JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid AND a.attnum = i.indkey[0]
-          WHERE i.indisunique AND NOT i.indisprimary AND i.indnatts = 1
+          WHERE i.indisunique AND NOT i.indisprimary AND i.indnatts = 1 AND i.indpred IS NULL
             AND n.nspname = c.table_schema AND r.relname = c.table_name AND a.attname = c.column_name)
 FROM information_schema.columns c
 JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
