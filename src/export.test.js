@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fileStem, paintSchema, resolveSide, schemaBounds, sqlIdent, toSql } from "./export.js";
+import { fileStem, fitText, paintSchema, resolveSide, schemaBounds, sqlIdent, toSql } from "./export.js";
 
 const sample = {
   zones: [{ id: "auth", title: "Полномочия", color: "#6d4caf", x: 10, y: 20, w: 400, h: 220 }],
@@ -73,6 +73,9 @@ test("отрисовка PNG пишет таблицы и связи", () => {
     closePath() {},
     fill() {},
     fillRect() {},
+    measureText(text) {
+      return { width: String(text).length * 7 };
+    },
     setLineDash(value) {
       strokes.push(value);
     },
@@ -107,6 +110,9 @@ test("стороны связи в PNG берутся из раскладки", 
     closePath() {},
     fill() {},
     fillRect() {},
+    measureText(text) {
+      return { width: String(text).length * 7 };
+    },
     setLineDash() {},
     fillText() {},
     stroke() {},
@@ -128,4 +134,12 @@ test("стороны связи в PNG берутся из раскладки", 
   assert.equal(curves.length, 1);
   assert.ok(curves[0].start < 40);
   assert.ok(curves[0].c1x < curves[0].start);
+});
+
+test("длинный текст в PNG обрезается многоточием", () => {
+  const ctx = { measureText: (text) => ({ width: String(text).length * 7 }) };
+  assert.equal(fitText(ctx, "id", 102), "id");
+  const cut = fitText(ctx, "very_long_column_name_for_index", 102);
+  assert.ok(cut.endsWith("…"));
+  assert.ok(cut.length * 7 <= 102);
 });

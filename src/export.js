@@ -151,17 +151,17 @@ export function paintSchema(ctx, state, origin = { x: 0, y: 0 }) {
     ctx.stroke();
     ctx.fillStyle = paint.header;
     ctx.font = "650 13px Segoe UI, system-ui, sans-serif";
-    ctx.fillText(table.id, pos.x + 8, pos.y + 18);
+    ctx.fillText(fitText(ctx, table.id, TABLE_W - 16), pos.x + 8, pos.y + 18);
     table.columns.forEach((column, index) => {
       const y = pos.y + HEAD_H + index * ROW_H;
       ctx.fillStyle = "#f3f1ef";
       ctx.fillRect(pos.x + 1, y, TABLE_W - 2, 1);
       ctx.fillStyle = "#1c1917";
       ctx.font = "12px ui-monospace, Consolas, monospace";
-      ctx.fillText(column.name, pos.x + 10, y + 14);
+      ctx.fillText(fitText(ctx, column.name, 102), pos.x + 10, y + 14);
       ctx.fillStyle = "#57534e";
       ctx.font = "11px Segoe UI, system-ui, sans-serif";
-      ctx.fillText(column.type || "text", pos.x + 118, y + 14);
+      ctx.fillText(fitText(ctx, column.type || "text", column.pk || column.uk ? 46 : 68), pos.x + 118, y + 14);
       if (column.pk || column.uk) {
         ctx.fillStyle = column.pk ? "#b45309" : "#1d4ed8";
         ctx.font = "700 10px Segoe UI, system-ui, sans-serif";
@@ -202,6 +202,18 @@ function fieldPoint(state, table, column, side) {
     x: side === "left" ? pos.x : pos.x + TABLE_W,
     y: pos.y + HEAD_H + index * ROW_H + ROW_H / 2,
   };
+}
+
+/**
+ * fitText — текст, который помещается в maxWidth текущим шрифтом; длинный
+ * обрезается и заканчивается многоточием.
+ */
+export function fitText(ctx, text, maxWidth) {
+  const value = String(text);
+  if (ctx.measureText(value).width <= maxWidth) return value;
+  let end = value.length;
+  while (end > 1 && ctx.measureText(`${value.slice(0, end)}…`).width > maxWidth) end -= 1;
+  return `${value.slice(0, end)}…`;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
