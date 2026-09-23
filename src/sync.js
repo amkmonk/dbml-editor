@@ -7,7 +7,8 @@ import { fitZone } from "./layout.js";
 
 /**
  * INTROSPECTION_SQL — запросы выгрузки для psql -At -F '|'. Столбцы:
- * columns — таблица, столбец, тип, порядок, первичный ключ, одиночный unique;
+ * columns — таблица, столбец, тип, порядок, первичный ключ, одиночный
+ * уникальный индекс (ограничение UNIQUE или индекс, в том числе частичный);
  * fks — таблица, столбец, таблица-цель, столбец-цель, правило удаления,
  * имя ограничения, число столбцов в ограничении.
  */
@@ -23,10 +24,12 @@ export const INTROSPECTION_SQL = {
   EXISTS (SELECT 1 FROM information_schema.table_constraints tc
           JOIN information_schema.key_column_usage k ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema
           WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = c.table_schema AND tc.table_name = c.table_name AND k.column_name = c.column_name),
-  EXISTS (SELECT 1 FROM information_schema.table_constraints tc
-          JOIN information_schema.key_column_usage k ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema
-          WHERE tc.constraint_type = 'UNIQUE' AND tc.table_schema = c.table_schema AND tc.table_name = c.table_name AND k.column_name = c.column_name
-            AND (SELECT count(*) FROM information_schema.key_column_usage k2 WHERE k2.constraint_name = tc.constraint_name AND k2.table_schema = tc.table_schema) = 1)
+  EXISTS (SELECT 1 FROM pg_catalog.pg_index i
+          JOIN pg_catalog.pg_class r ON r.oid = i.indrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = r.relnamespace
+          JOIN pg_catalog.pg_attribute a ON a.attrelid = r.oid AND a.attnum = i.indkey[0]
+          WHERE i.indisunique AND NOT i.indisprimary AND i.indnatts = 1
+            AND n.nspname = c.table_schema AND r.relname = c.table_name AND a.attname = c.column_name)
 FROM information_schema.columns c
 JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
 WHERE c.table_schema = 'public' AND t.table_type = 'BASE TABLE' AND c.table_name NOT LIKE 'goose%'
@@ -95,6 +98,8 @@ export function syncSchema(source, columnRows, fkRows, options = {}) {
         return { ...column, hidden: false };
       }
       if (old.type !== column.type) changes.push(`${id}: ${column.name} ${old.type} → ${column.type}`);
+      if (Boolean(old.pk) !== column.pk) changes.push(`${id}: ${column.name} ${column.pk ? "+" : "−"} pk`);
+      if (Boolean(old.uk) !== column.uk) changes.push(`${id}: ${column.name} ${column.uk ? "+" : "−"} unique`);
       return { ...old, type: column.type, pk: column.pk, uk: column.uk };
     });
     for (const old of table.columns) {

@@ -61,6 +61,7 @@ test("сверка берёт столбцы и связи из базы, зам
   assert.ok(changes.includes("users: − password"));
   assert.ok(changes.includes("users: + status user_status"));
   assert.ok(changes.includes("− таблица legacy"));
+  assert.ok(!changes.some((item) => item.startsWith("users: email")), "unique у email совпадает с базой");
 });
 
 test("скрытые столбцы без пары в базе остаются с keepHidden", () => {
@@ -93,4 +94,10 @@ test("выгрузка psql разбирается построчно", () => {
     ["a", "b"],
     ["c", "d"],
   ]);
+});
+
+test("сверка сообщает о смене флагов ключей", () => {
+  const state = parseDbml(source);
+  const { changes } = syncSchema(state, parseRows("users|id|uuid|1|t|f\nusers|email|text|2|f|f\n"), []);
+  assert.ok(changes.includes("users: email − unique"));
 });
