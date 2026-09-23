@@ -128,6 +128,7 @@ export function toDbml(state) {
       if (column.pk) flags.push("pk");
       if (column.uk) flags.push("unique");
       if (column.hidden) flags.push("hidden");
+      if (column.note) flags.push(`note: '${escapeNote(column.note)}'`);
       const suffix = flags.length ? ` [${flags.join(", ")}]` : "";
       lines.push(`  ${column.name} ${column.type || "text"}${suffix}`);
     }
@@ -179,26 +180,36 @@ function parseColumn(line) {
   const match = line.match(/^([A-Za-z_][\w]*)\s+([^[]+?)(?:\s+\[(.*)\])?\s*$/);
   if (!match) return null;
   const attrs = match[3] || "";
-  return {
+  // Заметка поля читается до флагов: в её тексте могут встретиться слова pk или hidden.
+  const note = attrs.match(/\bnote:\s*'((?:[^'\\]|\\.)*)'/i);
+  const flags = note ? attrs.replace(note[0], "") : attrs;
+  const column = {
     name: match[1],
     type: match[2].trim(),
-    pk: /\bpk\b/i.test(attrs),
-    uk: /\bunique\b/i.test(attrs),
-    hidden: /\bhidden\b/i.test(attrs),
+    pk: /\bpk\b/i.test(flags),
+    uk: /\bunique\b/i.test(flags),
+    hidden: /\bhidden\b/i.test(flags),
   };
+  if (note) column.note = note[1].replaceAll("\\'", "'");
+  return column;
 }
 
 function parseRef(line) {
   const match = line.match(
-    /^Ref:\s*("?[^.\s"]+"?|\w+)\.(\w+)\s*[><-]+\s*("?[^.\s"]+"?|\w+)\.(\w+)(?:\s*\[delete:\s*([^\]]+)\])?/i,
+    /^Ref:\s*("?[^.\s"]+"?|\w+)\.(\w+)\s*([><-]+)\s*("?[^.\s"]+"?|\w+)\.(\w+)(?:\s*\[delete:\s*([^\]]+)\])?/i,
   );
   if (!match) return null;
+  // «a.x < b.y» — это «b.y > a.x»: ссылается правая сторона.
+  const reversed = match[3] === "<";
+  const left = { table: unquote(match[1]), column: match[2] };
+  const right = { table: unquote(match[4]), column: match[5] };
+  const [from, to] = reversed ? [right, left] : [left, right];
   return {
-    from: unquote(match[1]),
-    fromCol: match[2],
-    to: unquote(match[3]),
-    toCol: match[4],
-    onDelete: String(match[5] || "RESTRICT")
+    from: from.table,
+    fromCol: from.column,
+    to: to.table,
+    toCol: to.column,
+    onDelete: String(match[6] || "RESTRICT")
       .trim()
       .replaceAll("_", " ")
       .toUpperCase(),

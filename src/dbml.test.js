@@ -58,3 +58,37 @@ TableGroup users {
   assert.equal(password.hidden, true);
   assert.match(toDbml(state), /password text \[hidden\]/);
 });
+
+test("заметка поля читается и пишется обратно", () => {
+  const source = `
+Table resources {
+  alias text [note: 'не hidden: единственен среди активных строк']
+  code text [unique, note: 'код SAP']
+}
+`;
+  const state = parseDbml(source);
+  const [alias, code] = state.tables[0].columns;
+  assert.equal(alias.note, "не hidden: единственен среди активных строк");
+  assert.equal(alias.hidden, false);
+  assert.equal(code.uk, true);
+  assert.equal(code.note, "код SAP");
+  const again = parseDbml(toDbml(state));
+  assert.equal(again.tables[0].columns[0].note, alias.note);
+});
+
+test("связь со знаком < читается в обратную сторону", () => {
+  const state = parseDbml(`
+Table users {
+  id uuid [pk]
+}
+Table posts {
+  user_id uuid
+}
+Ref: users.id < posts.user_id [delete: cascade]
+`);
+  assert.deepEqual(
+    { from: state.refs[0].from, fromCol: state.refs[0].fromCol, to: state.refs[0].to, toCol: state.refs[0].toCol },
+    { from: "posts", fromCol: "user_id", to: "users", toCol: "id" },
+  );
+  assert.equal(state.refs[0].onDelete, "CASCADE");
+});
