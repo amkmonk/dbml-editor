@@ -6,3 +6,4 @@
 
 - [AGENTS.md](https://raw.githubusercontent.com/amkmonk/dbml-editor/main/AGENTS.md): how to generate a compatible `.dbml` from any project's schema
 - [README.md](https://raw.githubusercontent.com/amkmonk/dbml-editor/main/README.md): how to run the editor and dialect examples humans can open
+- [AGENTS.md CLI section](https://raw.githubusercontent.com/amkmonk/dbml-editor/main/AGENTS.md): `node bin/dbml-editor.js check|stats|layout|sql|sync` — validate, auto-arrange and sync a `.dbml` with a live PostgreSQL schema without a browser
