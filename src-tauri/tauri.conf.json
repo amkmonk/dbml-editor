@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DBML Editor",
   "mainBinaryName": "dbml-editor",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "identifier": "com.amkmonk.dbml-editor",
   "build": {
     "frontendDist": "../dist",
