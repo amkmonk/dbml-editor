@@ -1,3 +1,5 @@
+import "@fontsource-variable/open-sans/wght.css";
+import "@fontsource-variable/inconsolata/wght.css";
 import interact from "./vendor/interact.js";
 import { copySelection, moveColumn, moveColumnTo, moveSelection, nudgeStep, relatedTableIds } from "./actions.js";
 import { arrange } from "./arrange.js";
@@ -5,6 +7,7 @@ import { centerOn, clampZoom, contentCenter, zoomAround } from "./camera.js";
 import { emptyState, parseDbml, toDbml } from "./dbml.js";
 import { fileStem, resolveSide, toPngBlob, toSql } from "./export.js";
 import { createSession } from "./history.js";
+import { FILE_CHANGED, ask, launchFile, openFile, saveFile, saveFileAs } from "./desktop.js";
 import { fieldIcon, iconSvg } from "./icons.js";
 import { fitZone } from "./layout.js";
 import { spread } from "./spread.js";
@@ -20,8 +23,9 @@ const panelEmpty = document.getElementById("panelEmpty");
 const panelBody = document.getElementById("panelBody");
 const catalogTree = document.getElementById("catalogTree");
 const catalogSearch = document.getElementById("catalogSearch");
-const btnDownload = document.getElementById("btnDownload");
-const downloadList = document.getElementById("downloadList");
+const btnSave = document.getElementById("btnSave");
+const btnSaveAs = document.getElementById("btnSaveAs");
+const saveAsList = document.getElementById("saveAsList");
 const btnLink = document.getElementById("btnLink");
 const btnCopy = document.getElementById("btnCopy");
 const btnDelete = document.getElementById("btnDelete");
@@ -37,6 +41,9 @@ const zoomReset = document.getElementById("zoomReset");
 
 let state = emptyState();
 let filename = "новый.dbml";
+// Путь и время изменения открытого файла: по ним «Сохранить» перезаписывает его без диалога.
+let filePath = null;
+let fileModified = null;
 let dirty = false;
 let selected = null;
 let linkMode = false;
@@ -62,6 +69,8 @@ function setHint(text) {
 function persistSession() {
   session.persist({
     filename,
+    filePath,
+    fileModified,
     mode,
     selected,
     catalogToggle,
@@ -75,7 +84,14 @@ function persistSession() {
 
 function refreshDirty() {
   dirty = JSON.stringify(state) !== savedJson;
+  showFileName();
+}
+
+function showFileName() {
   fileNameEl.textContent = filename + (dirty ? " •" : "");
+  fileNameEl.title = filePath || "Файл ещё не сохранён на диск";
+  btnSave.disabled = Boolean(filePath) && !dirty;
+  btnSave.title = filePath ? `Ctrl+S — перезаписать ${filePath}` : "Ctrl+S — выбрать, куда сохранить";
 }
 
 function updateUndoButtons() {
@@ -104,9 +120,9 @@ function pruneSelection() {
   } else if (selected.type === "ref" && !state.refs[selected.index]) selected = null;
 }
 
-function confirmDiscard() {
+async function confirmDiscard() {
   const hasWork = dirty || session.canUndo() || state.zones.length > 0 || state.tables.length > 0;
-  return !hasWork || window.confirm("Текущий файл и история правок будут стёрты. Продолжить?");
+  return !hasWork || ask("Текущий файл и история правок будут стёрты. Продолжить?");
 }
 
 function isEdit() {
@@ -176,7 +192,8 @@ function viewSize() {
 }
 
 function applyCamera() {
-  world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  // Целые пиксели сдвига: при дробном текст на доске мылится.
+  world.style.transform = `translate(${Math.round(panX)}px, ${Math.round(panY)}px) scale(${zoom})`;
   zoomReset.textContent = `${Math.round(zoom * 100)}%`;
 }
 
@@ -1161,8 +1178,12 @@ function duplicateSelected() {
   setHint("Создана копия вместе с дочерними объектами.");
 }
 
-function removeSelected() {
+async function removeSelected() {
   if (!isEdit() || !selected) return;
+  if (selected.type === "zone" && state.tables.some((table) => table.zone === selected.id)) {
+    const target = selected;
+    if (!(await ask("Удалить зону вместе с таблицами внутри?")) || selected !== target) return;
+  }
   if (selected.type === "ref") {
     state.refs.splice(selected.index, 1);
   } else if (selected.type === "field") {
@@ -1178,7 +1199,6 @@ function removeSelected() {
     state.tables = state.tables.filter((table) => table.id !== selected.id);
   } else if (selected.type === "zone") {
     if (state.tables.some((table) => table.zone === selected.id)) {
-      if (!window.confirm("Удалить зону вместе с таблицами внутри?")) return;
       const ids = state.tables.filter((table) => table.zone === selected.id).map((table) => table.id);
       state.tables = state.tables.filter((table) => table.zone !== selected.id);
       state.refs = state.refs.filter((ref) => !ids.includes(ref.from) && !ids.includes(ref.to));
@@ -1190,9 +1210,11 @@ function removeSelected() {
   render();
 }
 
-function loadState(next, name) {
+function loadState(next, name, file = null) {
   state = next;
   filename = name;
+  filePath = file?.path || null;
+  fileModified = file?.modified ?? null;
   savedJson = JSON.stringify(state);
   dirty = false;
   selected = null;
@@ -1205,6 +1227,7 @@ function loadState(next, name) {
   growBoard();
   centerOnContent();
   updateUndoButtons();
+  showFileName();
 }
 
 function applyHistory(next) {
@@ -1230,53 +1253,95 @@ function growBoard() {
   drawWires();
 }
 
-function downloadBlob(content, name, type) {
-  const blob = content instanceof Blob ? content : new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(url);
+function closeSaveAsMenu() {
+  saveAsList.hidden = true;
+  btnSaveAs.setAttribute("aria-expanded", "false");
 }
 
-function closeDownloadMenu() {
-  downloadList.hidden = true;
-  btnDownload.setAttribute("aria-expanded", "false");
+function toggleSaveAsMenu() {
+  const open = saveAsList.hidden;
+  saveAsList.hidden = !open;
+  btnSaveAs.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
-function toggleDownloadMenu() {
-  const open = downloadList.hidden;
-  downloadList.hidden = !open;
-  btnDownload.setAttribute("aria-expanded", open ? "true" : "false");
+// json — снимок того, что ушло на диск: правки, сделанные во время записи, останутся несохранёнными.
+function markSaved(file, json) {
+  filename = file.name || filename;
+  filePath = file.path;
+  fileModified = file.modified ?? null;
+  savedJson = json;
+  refreshDirty();
+  persistSession();
 }
 
-function exportAs(kind) {
-  closeDownloadMenu();
+function reportError(prefix, error) {
+  setHint(`${prefix}: ${escapeHtml(error?.message || error)}`);
+}
+
+async function saveCurrent() {
+  closeSaveAsMenu();
+  if (!filePath) return saveAs("dbml");
+  const json = JSON.stringify(state);
+  const text = toDbml(state);
+  try {
+    let file;
+    try {
+      file = await saveFile(filePath, text, fileModified);
+    } catch (error) {
+      if (String(error) !== FILE_CHANGED) throw error;
+      if (!(await ask(`Файл ${filePath} изменили на диске после открытия. Перезаписать его?`))) return;
+      file = await saveFile(filePath, text, fileModified, true);
+    }
+    markSaved(file, json);
+    setHint(`Сохранено: ${escapeHtml(file.path)}`);
+  } catch (error) {
+    reportError("Не удалось сохранить", error);
+  }
+}
+
+async function saveAs(kind) {
+  closeSaveAsMenu();
   const stem = fileStem(filename);
-  if (kind === "dbml") {
-    downloadBlob(toDbml(state), `${stem}.dbml`, "text/plain;charset=utf-8");
-    savedJson = JSON.stringify(state);
-    dirty = false;
-    persistSession();
-    fileNameEl.textContent = filename;
-    setHint("Скачан файл DBML.");
-    return;
+  try {
+    if (kind === "dbml") {
+      const json = JSON.stringify(state);
+      const file = await saveFileAs(`${stem}.dbml`, "dbml", toDbml(state));
+      if (!file) return;
+      markSaved(file, json);
+      setHint(`Сохранено: ${escapeHtml(file.path)}`);
+      return;
+    }
+    if (kind === "sql") {
+      const file = await saveFileAs(`${stem}.sql`, "sql", toSql(state));
+      if (file) setHint(`Сохранён SQL (CREATE TABLE и внешние ключи): ${escapeHtml(file.path)}`);
+      return;
+    }
+    if (kind === "png") {
+      await document.fonts.ready;
+      const file = await saveFileAs(`${stem}.png`, "png", await toPngBlob(state));
+      if (file) setHint(`Сохранено изображение схемы: ${escapeHtml(file.path)}`);
+    }
+  } catch (error) {
+    reportError(`Не удалось сохранить ${kind.toUpperCase()}`, error);
   }
-  if (kind === "sql") {
-    downloadBlob(toSql(state), `${stem}.sql`, "text/plain;charset=utf-8");
-    setHint("Скачан SQL: CREATE TABLE и внешние ключи.");
-    return;
+}
+
+async function openFromDisk() {
+  if (!(await confirmDiscard())) return;
+  try {
+    const file = await openFile();
+    if (file) openLoaded(file);
+  } catch (error) {
+    reportError("Не удалось открыть файл", error);
   }
-  if (kind === "png") {
-    toPngBlob(state)
-      .then((blob) => {
-        downloadBlob(blob, `${stem}.png`, "image/png");
-        setHint("Скачано изображение схемы в PNG.");
-      })
-      .catch((error) => {
-        setHint(`Не удалось собрать PNG: ${error.message || error}`);
-      });
+}
+
+function openLoaded(file) {
+  try {
+    loadState(parseDbml(file.text), file.name, file);
+    setHint(`Открыт файл ${escapeHtml(file.path)}.`);
+  } catch (error) {
+    reportError("Не удалось разобрать DBML", error);
   }
 }
 
@@ -1332,35 +1397,25 @@ function selectFromTarget(target) {
   if (zone) select({ type: "zone", id: zone.dataset.id });
 }
 
-document.getElementById("btnNew").addEventListener("click", () => {
-  if (!confirmDiscard()) return;
+document.getElementById("btnNew").addEventListener("click", async () => {
+  if (!(await confirmDiscard())) return;
   loadState(emptyState(), "новый.dbml");
   setHint("Пустая доска. Перейдите в редактор, чтобы создать зону.");
 });
 
-document.getElementById("fileOpen").addEventListener("change", async (event) => {
-  const file = event.target.files?.[0];
-  event.target.value = "";
-  if (!file || !confirmDiscard()) return;
-  try {
-    loadState(parseDbml(await file.text()), file.name);
-    setHint(`Открыт файл ${file.name}.`);
-  } catch (error) {
-    setHint(`Не удалось разобрать DBML: ${error.message || error}`);
-  }
-});
-
-btnDownload.addEventListener("click", (event) => {
+document.getElementById("btnOpen").addEventListener("click", openFromDisk);
+btnSave.addEventListener("click", saveCurrent);
+btnSaveAs.addEventListener("click", (event) => {
   event.stopPropagation();
-  toggleDownloadMenu();
+  toggleSaveAsMenu();
 });
-downloadList.querySelectorAll("[data-export]").forEach((button) => {
+saveAsList.querySelectorAll("[data-export]").forEach((button) => {
   button.addEventListener("click", (event) => {
     event.stopPropagation();
-    exportAs(button.dataset.export);
+    saveAs(button.dataset.export);
   });
 });
-document.addEventListener("click", () => closeDownloadMenu());
+document.addEventListener("click", () => closeSaveAsMenu());
 document.getElementById("btnUndo").addEventListener("click", () => applyHistory(session.undo()));
 document.getElementById("btnRedo").addEventListener("click", () => applyHistory(session.redo()));
 document.getElementById("btnZone").addEventListener("click", addZone);
@@ -1443,6 +1498,18 @@ viewport.addEventListener("auxclick", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Shift") setShiftHold(true);
   const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName);
+  // event.code не зависит от раскладки: Ctrl+S работает и при русской.
+  if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") {
+    event.preventDefault();
+    if (event.shiftKey) saveAs("dbml");
+    else saveCurrent();
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.code === "KeyO") {
+    event.preventDefault();
+    openFromDisk();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && !typing && (event.key === "z" || event.key === "Z")) {
     if (!isEdit()) return;
     event.preventDefault();
@@ -1481,7 +1548,7 @@ document.addEventListener("keydown", (event) => {
     removeSelected();
   }
   if (event.key === "Escape") {
-    closeDownloadMenu();
+    closeSaveAsMenu();
     setLinkMode(false);
     render();
   }
@@ -1503,6 +1570,8 @@ const restored = session.restore();
 if (restored?.current) {
   state = session.snapshot();
   filename = restored.filename || "новый.dbml";
+  filePath = typeof restored.filePath === "string" ? restored.filePath : null;
+  fileModified = Number.isFinite(restored.fileModified) ? restored.fileModified : null;
   selected = restored.selected || null;
   catalogToggle = restored.catalogToggle && typeof restored.catalogToggle === "object" ? restored.catalogToggle : {};
   savedJson = typeof restored.savedJson === "string" ? restored.savedJson : JSON.stringify(state);
@@ -1525,3 +1594,12 @@ if (restored?.current) {
   setMode("view");
   applyCamera();
 }
+showFileName();
+
+launchFile()
+  .then(async (file) => {
+    if (!file) return;
+    if (dirty && !(await ask(`Открыть ${file.path}? Несохранённые правки в ${filename} пропадут.`))) return;
+    openLoaded(file);
+  })
+  .catch((error) => reportError("Не удалось открыть файл", error));

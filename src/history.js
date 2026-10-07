@@ -89,6 +89,8 @@ export function createSession(storage, key = DEFAULT_KEY) {
     const envelope = () => ({
       version: 1,
       filename: meta.filename,
+      filePath: meta.filePath ?? null,
+      fileModified: meta.fileModified ?? null,
       mode: meta.mode,
       selected: meta.selected,
       catalogToggle: meta.catalogToggle || {},
@@ -107,7 +109,7 @@ export function createSession(storage, key = DEFAULT_KEY) {
       try {
         storage.setItem(key, JSON.stringify(envelope()));
       } catch {
-        /* квота браузера кончилась */
+        /* квота localStorage кончилась */
       }
     }
   }

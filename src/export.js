@@ -4,6 +4,9 @@ const TABLE_W = 196;
 const HEAD_H = 28;
 const ROW_H = 20;
 const SCALE = 2;
+// Как --font-sans и --font-mono в style.css.
+const SANS = '"Segoe UI", "Open Sans Variable", sans-serif';
+const MONO = 'Consolas, "Inconsolata Variable", monospace';
 
 export function fileStem(name) {
   return String(name || "схема").replace(/\.(dbml|txt|sql|png)$/i, "") || "схема";
@@ -108,7 +111,7 @@ export function paintSchema(ctx, state, origin = { x: 0, y: 0 }) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.fillStyle = paint.title;
-    ctx.font = "700 12px Segoe UI, system-ui, sans-serif";
+    ctx.font = `700 12px ${SANS}`;
     ctx.fillText(String(zone.title || zone.id).toUpperCase(), zone.x + 16, zone.y + 22);
   }
   for (const ref of state.refs) {
@@ -150,21 +153,21 @@ export function paintSchema(ctx, state, origin = { x: 0, y: 0 }) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = paint.header;
-    ctx.font = "650 13px Segoe UI, system-ui, sans-serif";
+    ctx.font = `650 13px ${SANS}`;
     ctx.fillText(fitText(ctx, table.id, TABLE_W - 16), pos.x + 8, pos.y + 18);
     table.columns.forEach((column, index) => {
       const y = pos.y + HEAD_H + index * ROW_H;
       ctx.fillStyle = "#f3f1ef";
       ctx.fillRect(pos.x + 1, y, TABLE_W - 2, 1);
       ctx.fillStyle = "#1c1917";
-      ctx.font = "12px ui-monospace, Consolas, monospace";
+      ctx.font = `12px ${MONO}`;
       ctx.fillText(fitText(ctx, column.name, 102), pos.x + 10, y + 14);
       ctx.fillStyle = "#57534e";
-      ctx.font = "11px Segoe UI, system-ui, sans-serif";
+      ctx.font = `11px ${SANS}`;
       ctx.fillText(fitText(ctx, column.type || "text", column.pk || column.uk ? 46 : 68), pos.x + 118, y + 14);
       if (column.pk || column.uk) {
         ctx.fillStyle = column.pk ? "#b45309" : "#1d4ed8";
-        ctx.font = "700 10px Segoe UI, system-ui, sans-serif";
+        ctx.font = `700 10px ${SANS}`;
         ctx.fillText(column.pk ? "PK" : "UK", pos.x + 168, y + 14);
       }
     });

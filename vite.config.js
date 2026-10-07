@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 
+// Vite только собирает интерфейс для Tauri: dev-сервер для `npm run dev`, dist/ для сборки пакетов.
 const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
@@ -8,7 +9,6 @@ export default defineConfig({
   server: {
     port: 5177,
     strictPort: true,
-    open: !process.env.TAURI_ENV_PLATFORM,
     host: host || false,
     hmr: host
       ? {
@@ -18,7 +18,7 @@ export default defineConfig({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      ignored: ["**/src-tauri/**", "**/release/**"],
     },
   },
 });

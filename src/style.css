@@ -13,6 +13,11 @@
   --hint-bg: #fff;
   --mode-accent: #44403c;
   --board-tint: #f5f5f4;
+  /* Segoe UI и Consolas есть только в Windows. На Linux вместо случайной системной замены
+     берутся шрифты, вшитые в сборку (@fontsource в main.js): Open Sans и Inconsolata —
+     открытые аналоги с близкой шириной. Те же стеки — у PNG в export.js. */
+  --font-sans: "Segoe UI", "Open Sans Variable", sans-serif;
+  --font-mono: Consolas, "Inconsolata Variable", monospace;
 }
 body.mode-view {
   --header-bg: #52525b;
@@ -42,7 +47,7 @@ body.mode-edit {
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
-  font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
+  font: 13px/1.4 var(--font-sans);
   color: var(--ink);
   background: var(--paper);
   display: flex;
@@ -72,7 +77,7 @@ body.mode-edit .view-only { display: none; }
 body.mode-view aside.panel { display: none; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-button, .file-btn {
+button {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -85,7 +90,7 @@ button, .file-btn {
   font: inherit;
   cursor: pointer;
 }
-button svg, .file-btn svg {
+button svg {
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
@@ -95,11 +100,10 @@ button svg, .file-btn svg {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-button:hover, .file-btn:hover { background: #f5f5f4; }
+button:hover { background: #f5f5f4; }
 button.active { background: #e7e5e4; border-color: #a8a29e; }
 button.danger { color: #9f1239; }
 button:disabled { opacity: 0.45; cursor: default; }
-input[type="file"] { display: none; }
 .menu { position: relative; }
 .menu-list {
   position: absolute;
@@ -239,7 +243,9 @@ aside.catalog input[type="search"] {
 }
 #viewport::-webkit-scrollbar { display: none; }
 #worldSlot { position: absolute; inset: 0; overflow: hidden; }
-#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+/* Без will-change: WebKitGTK (Linux) растеризует такой слой один раз и дальше масштабирует картинку —
+   текст на доске расплывается. Без подсказки текст перерисовывается чётко на каждом масштабе. */
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 body.panning, body.panning #viewport { cursor: grabbing; }
 
 #board {
@@ -375,7 +381,7 @@ body.link-mode .port,
 }
 .port.active, body.link-mode .port:hover { background: #1c1917; border-color: #1c1917; }
 /* Длинные имена и типы обрезаются многоточием: карточка не шире 196 px. */
-.cols .n { font-family: ui-monospace, Consolas, monospace; font-size: 12px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cols .n { font-family: var(--font-mono); font-size: 12px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cols .t { color: var(--muted); font-size: 11px; flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mark { font-size: 10px; font-weight: 700; margin-right: 4px; }
 .pk { color: #b45309; }
